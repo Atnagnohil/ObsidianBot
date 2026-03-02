@@ -67,3 +67,6 @@ Thumbs.db
 
 # 日志文件
 *.log
+
+# 配置文件
+config.yaml

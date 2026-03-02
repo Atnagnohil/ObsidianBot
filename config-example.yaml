@@ -1,0 +1,15 @@
+llm:
+  providers:
+    # 其他提供商示例
+    # anthropic:
+    #   type: anthropic
+    #   base_url: https://api.anthropic.com
+    #   api_key: your-api-key-here
+
+logger:
+  path: logs
+  level: INFO
+  rotation: 100 MB
+  retention: 14 days
+  compression: zip
+  console: true
