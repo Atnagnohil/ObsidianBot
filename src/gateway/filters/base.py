@@ -1,170 +1,119 @@
-"""过滤器基类和过滤器链实现。
-
-用于 QQ 机器人网关层，处理来自 Milky 反向 WebSocket 协议的事件。
-"""
-
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from enum import Enum
 
-from src.utils.logger import logger
+from src.gateway.core.protocol import BaseEvent
 
 
-class BaseFilter(ABC):
-    """过滤器基类。
+class FilterResult(str, Enum):
+  """过滤器执行结果"""
+  PASS = "pass"  # 通过，继续执行下一个过滤器
+  DROP = "drop"  # 丢弃事件，不再执行任何后续逻辑
 
-    所有过滤器都应继承此类并实现 process 方法。
-    过滤器可以对 QQ 事件进行预处理、验证、增强、过滤等操作。
+
+@dataclass
+class BotContext:
+  """上下文对象"""
+  event: BaseEvent  # 原始事件对象
+  is_dropped: bool = False  # 是否被丢弃
+  drop_reason: str = ""  # 丢弃原因
+  metadata: dict = None  # 额外的元数据
+
+  def __post_init__(self):
+    """初始化后处理"""
+    if self.metadata is None:
+      self.metadata = {}
+
+  def drop(self, reason: str = ""):
     """
+    丢弃事件，不再执行后续逻辑
+    :param reason: 丢弃原因
+    """
+    self.is_dropped = True
+    self.drop_reason = reason
 
-    def __init__(self, name: Optional[str] = None, priority: int = 100):
-        """初始化过滤器。
+  def set_metadata(self, key: str, value):
+    """
+    设置元数据
+    :param key: 键
+    :param value: 值
+    """
+    self.metadata[key] = value
 
-        Args:
-            name: 过滤器名称，用于日志和调试。如果未提供，使用类名。
-            priority: 过滤器优先级，数值越小优先级越高。默认为 100。
-        """
-        self.name = name or self.__class__.__name__
-        self.priority = priority
-        self.enabled = True
+  def get_metadata(self, key: str, default=None):
+    """
+    获取元数据
+    :param key: 键
+    :param default: 默认值
+    :return: 元数据值
+    """
+    return self.metadata.get(key, default)
 
-    @abstractmethod
-    async def process(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """处理 QQ 事件数据。
 
-        Args:
-            context: 事件上下文字典，包含事件数据和元信息。
-                    典型结构：
-                    {
-                        "event": {...},           # Milky 协议的原始事件数据
-                        "event_type": "message",  # 事件类型（message/notice/request等）
-                        "bot_id": "123456",       # 机器人 QQ 号
-                        "user_id": "789012",      # 用户 QQ 号（如果有）
-                        "group_id": "345678",     # 群号（如果有）
-                        "message": "...",         # 消息内容（如果是消息事件）
-                        "metadata": {...},        # 自定义元数据
-                        "stop": False,            # 是否停止后续过滤器执行
-                        "skip_handler": False     # 是否跳过事件处理器
-                    }
+class Filter(ABC):
+  """过滤器抽象类"""
 
-        Returns:
-            处理后的上下文字典。可以修改、增强或过滤事件数据。
+  def __init__(self, order: int = 100):
+    self.order = order
+    self.name = self.__class__.__name__
 
-        Raises:
-            Exception: 处理过程中的任何异常。
-        """
-        pass
-
-    def enable(self) -> None:
-        """启用过滤器。"""
-        self.enabled = True
-        logger.debug(f"过滤器 {self.name} 已启用")
-
-    def disable(self) -> None:
-        """禁用过滤器。"""
-        self.enabled = False
-        logger.debug(f"过滤器 {self.name} 已禁用")
+  @abstractmethod
+  async def do_filter(self, context: BotContext, chain: FilterChain) -> FilterResult:
+    """
+    执行过滤器
+    :param context: 上下文对象
+    :param chain: 过滤器链
+    :return: FilterResult.PASS 继续执行，FilterResult.DROP 丢弃事件
+    """
+    pass
 
 
 class FilterChain:
-    """过滤器链，按优先级顺序执行多个过滤器。"""
+  """过滤器链"""
 
-    def __init__(self, name: str = "default"):
-        """初始化过滤器链。
+  def __init__(self, filters: list[Filter]):
+    """
+    初始化过滤器链
+    :param filters: 过滤器列表
+    """
+    self.filters = sorted(filters, key=lambda f: f.order)
+    self.index = 0
 
-        Args:
-            name: 过滤器链名称。
-        """
-        self.name = name
-        self.filters: List[BaseFilter] = []
+  async def do_filter(self, context: BotContext) -> bool:
+    """
+    执行过滤器链
+    :param context: 上下文对象
+    :return: True 所有过滤器通过，False 事件被丢弃
+    """
+    # 如果已经被丢弃，直接返回 False
+    if context.is_dropped:
+      return False
 
-    def add_filter(self, filter_instance: BaseFilter) -> "FilterChain":
-        """添加过滤器到链中，并按优先级自动排序。
+    # 还有过滤器需要执行
+    if self.index < len(self.filters):
+      current = self.filters[self.index]
+      self.index += 1
 
-        Args:
-            filter_instance: 过滤器实例。
+      try:
+        # 执行当前过滤器
+        result = await current.do_filter(context, self)
 
-        Returns:
-            返回自身，支持链式调用。
-        """
-        self.filters.append(filter_instance)
-        # 按优先级排序，数值越小优先级越高
-        self.filters.sort(key=lambda f: f.priority)
-        logger.debug(
-            f"过滤器链 {self.name} 添加过滤器: {filter_instance.name} "
-            f"(优先级: {filter_instance.priority})"
-        )
-        return self
+        # 如果过滤器返回 DROP，标记为丢弃并停止执行
+        if result == FilterResult.DROP:
+          if not context.is_dropped:
+            context.drop(f"Filter {current.name} dropped")
+          return False
 
-    def remove_filter(self, filter_name: str) -> bool:
-        """从链中移除指定名称的过滤器。
+        # 如果返回 PASS，继续执行下一个过滤器
+        return await self.do_filter(context)
+      except Exception as e:
+        # 过滤器异常，记录并丢弃
+        context.drop(f"Filter {current.name} exception: {e}")
+        raise
+    else:
+      # 所有过滤器都通过
+      return True
 
-        Args:
-            filter_name: 过滤器名称。
-
-        Returns:
-            是否成功移除。
-        """
-        for i, f in enumerate(self.filters):
-            if f.name == filter_name:
-                self.filters.pop(i)
-                logger.debug(f"过滤器链 {self.name} 移除过滤器: {filter_name}")
-                return True
-        return False
-
-    async def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """执行过滤器链，按优先级顺序处理事件。
-
-        Args:
-            context: 初始事件上下文。
-
-        Returns:
-            经过所有过滤器处理后的上下文。
-        """
-        event_type = context.get("event_type", "unknown")
-        logger.debug(f"开始执行过滤器链: {self.name} (事件类型: {event_type})")
-
-        for filter_instance in self.filters:
-            if not filter_instance.enabled:
-                logger.debug(f"跳过已禁用的过滤器: {filter_instance.name}")
-                continue
-
-            try:
-                logger.debug(
-                    f"执行过滤器: {filter_instance.name} "
-                    f"(优先级: {filter_instance.priority})"
-                )
-                context = await filter_instance.process(context)
-
-                # 检查是否需要停止后续过滤器执行
-                if context.get("stop", False):
-                    logger.info(
-                        f"过滤器 {filter_instance.name} 请求停止链执行 "
-                        f"(skip_handler: {context.get('skip_handler', False)})"
-                    )
-                    break
-
-            except Exception as e:
-                logger.error(
-                    f"过滤器 {filter_instance.name} 执行失败: {e}",
-                    exc_info=True
-                )
-                context["error"] = str(e)
-                context["failed_filter"] = filter_instance.name
-                context["stop"] = True
-                break
-
-        logger.debug(f"过滤器链 {self.name} 执行完成")
-        return context
-
-    def clear(self) -> None:
-        """清空过滤器链。"""
-        self.filters.clear()
-        logger.debug(f"过滤器链 {self.name} 已清空")
-
-    def get_filters(self) -> List[str]:
-        """获取所有过滤器名称列表。
-
-        Returns:
-            过滤器名称列表。
-        """
-        return [f.name for f in self.filters]
+  def reset(self):
+    """重置过滤器链索引，用于复用"""
+    self.index = 0

@@ -1,10 +1,10 @@
 llm:
   providers:
-    # 其他提供商示例
-    # anthropic:
-    #   type: anthropic
-    #   base_url: https://api.anthropic.com
-    #   api_key: your-api-key-here
+  # 其他提供商示例
+  # anthropic:
+  #   type: anthropic
+  #   base_url: https://api.anthropic.com
+  #   api_key: your-api-key-here
 
 logger:
   path: logs
@@ -13,3 +13,9 @@ logger:
   retention: 14 days
   compression: zip
   console: true
+
+ws:
+  host: 0.0.0.0
+  port: 8081
+  heartbeat_interval: 30
+  heartbeat_timeout: 10

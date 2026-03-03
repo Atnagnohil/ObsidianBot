@@ -1,64 +1,57 @@
-"""主程序入口与日志测试模块。
+# 使用示例
+import asyncio
 
-用于验证 src.utils.logger 的各项功能，包括原生调用、封装调用栈回溯、
-以及异常追踪（打印到控制台与 error.log）。
-"""
-
-from src.utils import logger as log_module
+from src.gateway.core.connection.websocket import ReverseWebSocketServer
+from src.gateway.filters.base import BotContext
+from src.gateway.filters.content import ContentFilter
+from src.utils.config import config
 from src.utils.logger import logger
 
 
-def test_standard_levels() -> None:
-    """测试原生的各种日志级别输出。"""
-    logger.debug("这是一条 [原生] DEBUG 信息")
-    logger.info("这是一条 [原生] INFO 信息")
-    logger.warning("这是一条 [原生] WARNING 信息")
-    logger.error("这是一条 [原生] ERROR 信息")
-    logger.success("这是一条 [原生] SUCCESS 信息")  # Loguru 特有的成功级别
+async def main():
+  """主函数，启动 WebSocket 服务端。"""
+  # 从配置文件读取 WebSocket 配置
+  ws_config = config.get("ws", {})
+  host = ws_config.get("host", "0.0.0.0")
+  port = ws_config.get("port", 8080)
+  heartbeat_interval = ws_config.get("heartbeat_interval", 30)
+  heartbeat_timeout = ws_config.get("heartbeat_timeout", 10)
 
+  # 创建过滤器列表
+  filters = [
+    ContentFilter(order=10),
+  ]
 
-def test_wrapped_methods() -> None:
-    """测试二次封装的方法，验证调用栈 depth=1 是否生效。
-    
-    如果配置正确，日志输出的文件名和行号应指向本文件（main.py），
-    而不是 logger.py 内部的包装函数。
-    """
-    log_module.debug("这是一条 [封装] DEBUG 信息")
-    log_module.info("这是一条 [封装] INFO 信息")
-    log_module.warning("这是一条 [封装] WARNING 信息")
-    log_module.error("这是一条 [封装] ERROR 信息")
-    log_module.critical("这是一条 [封装] CRITICAL 信息")
+  # 创建 WebSocket 服务端
+  server = ReverseWebSocketServer(
+    host=host,
+    port=port,
+    heartbeat_interval=heartbeat_interval,
+    heartbeat_timeout=heartbeat_timeout,
+    filters=filters,
+  )
 
+  # 设置回调
+  async def on_message(context: BotContext):
+    logger.info(f"[回调] 处理消息: {context.event.post_type}")
 
-def test_exception_logging() -> None:
-    """测试异常捕获与诊断日志记录。
-    
-    验证是否生成 error_*.log 并包含完整的变量上下文 (diagnose=True)。
-    """
-    try:
-        a: int = 10
-        b: int = 0
-        _ = a / b
-    except ZeroDivisionError as e:
-        # logger.exception 会自动捕获 traceback 并输出到 ERROR 级别
-        logger.exception(f"发生致命的数学错误: {e}")
+  async def on_connect():
+    logger.success("[回调] 客户端已连接")
 
+  async def on_disconnect():
+    logger.warning("[回调] 客户端已断开")
 
-def main() -> None:
-    """主函数，执行所有日志测试。"""
-    logger.info("--- 开始日志系统测试 ---")
-    
-    logger.info(">>> 1. 测试原生日志级别")
-    test_standard_levels()
-    
-    logger.info(">>> 2. 测试二次封装日志级别 (请注意检查行号)")
-    test_wrapped_methods()
-    
-    logger.info(">>> 3. 测试异常追踪记录 (请随后检查 logs/ 目录下的 error 日志)")
-    test_exception_logging()
-    
-    logger.info("--- 日志系统测试结束 ---")
+  server.on_message = on_message
+  server.on_connect = on_connect
+  server.on_disconnect = on_disconnect
+
+  # 启动服务端
+  try:
+    await server.start()
+  except KeyboardInterrupt:
+    logger.info("收到中断信号，正在关闭...")
+    await server.stop()
 
 
 if __name__ == "__main__":
-    main()
+  asyncio.run(main())

@@ -60,6 +60,7 @@ class MessageType(str, Enum):
   FACE = "face"  # 表情
   M_FACE = "m_face"  # 表情包
   MARKDOWN = "markdown"  # Markdown
+  image = "image"  # 图片
   FORWARD = "forward"  # 转发
   DICE = "dice"  # 骰子
   RPS = "rps"  # 猜拳
