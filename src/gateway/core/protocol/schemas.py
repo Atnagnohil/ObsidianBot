@@ -91,3 +91,185 @@ class MessageEvent(BaseEvent):
   font: int  # 字体 ID
   target_id: int  # 接收者 ID（仅发送的消息）
   temp_source: int  # 临时会话来源（群临时会话 0=群聊）
+
+
+@dataclass
+class PokeEvent(BaseEvent):
+    """戳一戳事件 (Poke Event) 数据类。"""
+    
+    notice_type: str  # 通知类型，必须为 'notify'
+    sub_type: str     # 子类型，必须为 'poke'
+    user_id: int      # 发送戳一戳的用户
+    target_id: int    # 被戳的目标用户
+    
+    # 带有默认值的可选字段必须放在非可选字段的后面
+    group_id: Optional[int] = None  # 群号（仅群聊戳一戳存在）
+    raw_info: Optional[str] = None  # 原始戳一戳信息
+
+
+
+@dataclass
+class PokeEvent(BaseEvent):
+    """戳一戳事件 (Poke Event) 数据类。"""
+    notice_type: str
+    sub_type: str
+    user_id: int
+    target_id: int
+    group_id: Optional[int] = None
+    raw_info: Optional[str] = None
+
+
+@dataclass
+class PokeRecallEvent(BaseEvent):
+    """撤回戳一戳事件。"""
+    notice_type: str
+    sub_type: str
+    target_id: int
+    user_id: int
+    group_id: Optional[int] = None
+    message_id: Optional[int] = None
+
+
+@dataclass
+class FriendRecallNoticeEvent(BaseEvent):
+    """好友消息撤回事件。"""
+    notice_type: str
+    user_id: int
+    message_id: int
+
+
+@dataclass
+class FriendRequestEvent(BaseEvent):
+    """好友申请事件。"""
+    request_type: str
+    user_id: int
+    comment: str
+    flag: str
+
+
+@dataclass
+class FriendAddNoticeEvent(BaseEvent):
+    """好友添加事件。"""
+    notice_type: str
+    user_id: int
+
+
+@dataclass
+class ProfileLikeEvent(BaseEvent):
+    """名片点赞事件。"""
+    notice_type: str
+    sub_type: str
+    user_id: int
+    operator_id: int
+    times: int
+
+
+@dataclass
+class GroupUploadNoticeEvent(BaseEvent):
+    """群文件上传事件。"""
+    notice_type: str
+    group_id: int
+    user_id: int
+    file: Dict[str, Any]
+
+
+@dataclass
+class GroupRequestEvent(BaseEvent):
+    """申请加群事件。"""
+    request_type: str
+    sub_type: str
+    group_id: int
+    user_id: int
+    comment: str
+    flag: str
+
+
+@dataclass
+class GroupIncreaseEvent(BaseEvent):
+    """群成员新增事件。"""
+    notice_type: str
+    sub_type: str
+    group_id: int
+    operator_id: int
+    user_id: int
+
+
+@dataclass
+class GroupDecreaseEvent(BaseEvent):
+    """群成员减少事件。"""
+    notice_type: str
+    sub_type: str
+    group_id: int
+    operator_id: int
+    user_id: int
+
+
+@dataclass
+class GroupTitleEvent(BaseEvent):
+    """群头衔变更事件。"""
+    notice_type: str
+    sub_type: str
+    group_id: int
+    user_id: int
+    title: str
+
+
+@dataclass
+class GroupMsgEmojiLikeEvent(BaseEvent):
+    """群消息贴表情事件。"""
+    notice_type: str
+    sub_type: str
+    group_id: int
+    user_id: int
+    message_id: int
+    likes: List[Dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class GroupRecallNoticeEvent(BaseEvent):
+    """群消息撤回事件。"""
+    notice_type: str
+    group_id: int
+    user_id: int
+    operator_id: int
+    message_id: int
+
+
+@dataclass
+class GroupAdminNoticeEvent(BaseEvent):
+    """群管理员变动事件。"""
+    notice_type: str
+    sub_type: str
+    group_id: int
+    user_id: int
+
+
+@dataclass
+class GroupBanEvent(BaseEvent):
+    """群禁言事件。"""
+    notice_type: str
+    sub_type: str
+    group_id: int
+    operator_id: int
+    user_id: int
+    duration: int
+
+
+@dataclass
+class EssenceEvent(BaseEvent):
+    """群精华消息事件。"""
+    notice_type: str
+    sub_type: str
+    group_id: int
+    sender_id: int
+    operator_id: int
+    message_id: int
+
+
+@dataclass
+class FlashFileEvent(BaseEvent):
+    """闪传文件事件。"""
+    notice_type: str
+    user_id: int
+    file: Dict[str, Any]
+    group_id: Optional[int] = None
