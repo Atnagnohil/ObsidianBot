@@ -6,7 +6,10 @@ from langchain_openai import ChatOpenAI
 
 from src.engine.provider.llm.base import BaseLLMProvider
 from src.engine.provider.llm.scheams import LLMChatRequest, LLMChatResponse
-from src.utils import http, convert_to_langchain_messages, build_llm_response, config
+from src.utils.http_client import http
+from src.utils.message_converter import convert_to_langchain_messages
+from src.utils.response_builder import build_llm_response
+from src.utils.config import config
 
 
 class OpenAIProvider(BaseLLMProvider):

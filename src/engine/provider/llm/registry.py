@@ -51,7 +51,7 @@ class LLMProviderRegistry:
     Returns:
         实例化的提供商对象
     """
-    from src.utils import config
+    from src.utils.config import config
 
     provider_config = config.get_provider_config(provider_name)
     if not provider_config:

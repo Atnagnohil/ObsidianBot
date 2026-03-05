@@ -2,14 +2,21 @@
 import asyncio
 
 from src.gateway.core.connection.websocket import ReverseWebSocketServer
+from src.gateway.dispatcher import MessageDispatcher
 from src.gateway.filters.base import BotContext
 from src.gateway.filters.content import ContentFilter
+from src.gateway.handlers.echo_handler import EchoHandler
+from src.gateway.handlers.help_handler import HelpHandler
 from src.utils.config import config
 from src.utils.logger import logger
 
 
 async def main():
   """主函数，启动 WebSocket 服务端。"""
+  # 加载配置
+  config.load("config.yaml")
+  logger.info("配置加载完成")
+
   # 从配置文件读取 WebSocket 配置
   ws_config = config.get("ws", {})
   host = ws_config.get("host", "0.0.0.0")
@@ -21,6 +28,16 @@ async def main():
   filters = [
     ContentFilter(order=10),
   ]
+
+  # 创建处理器列表
+  handlers = [
+    HelpHandler(priority=10),  # 帮助命令，优先级最高
+    EchoHandler(priority=50),  # 回声处理器
+  ]
+
+  # 创建消息分派器
+  dispatcher = MessageDispatcher(handlers=handlers)
+  logger.info(f"已注册 {len(handlers)} 个处理器")
 
   # 创建 WebSocket 服务端
   server = ReverseWebSocketServer(
@@ -34,6 +51,10 @@ async def main():
   # 设置回调
   async def on_message(context: BotContext):
     logger.info(f"[回调] 处理消息: {context.event.post_type}")
+
+    # 分派消息到处理器
+    response = await dispatcher.dispatch(context)
+    logger.info(f"处理结果: {response.result.value} - {response.message}")
 
   async def on_connect():
     logger.success("[回调] 客户端已连接")

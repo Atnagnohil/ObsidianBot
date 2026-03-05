@@ -2,9 +2,8 @@ from abc import ABC, abstractmethod
 from typing import List
 
 from langchain_core.language_models import BaseChatModel
-from src.schemas.llm_chat_request import LLMChatRequest
-from src.schemas.llm_chat_response import LLMChatResponse
-from src.schemas.llm_message import LLMMessage
+
+from src.engine.provider.llm.scheams import LLMChatRequest, LLMChatResponse
 
 
 class BaseLLMProvider(ABC):
