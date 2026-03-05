@@ -1,11 +1,13 @@
 # 使用示例
 import asyncio
 
+# 注册 LLM 提供商
 from src.gateway.core.connection.websocket import ReverseWebSocketServer
 from src.gateway.core.protocol.onebot import bot_adapter
 from src.gateway.dispatcher import MessageDispatcher
 from src.gateway.filters.base import BotContext
 from src.gateway.filters.content import ContentFilter
+from src.gateway.handlers.agent_handler import AgentHandler
 from src.gateway.handlers.echo_handler import EchoHandler
 from src.gateway.handlers.help_handler import HelpHandler
 from src.utils.config import config
@@ -14,7 +16,7 @@ from src.utils.logger import logger
 
 async def main():
   """主函数，启动 WebSocket 服务端。"""
-  # 加载配置
+
   # 检查 OneBot 服务连接
   logger.info("正在检查 OneBot 服务连接...")
   if await bot_adapter.check_health():
@@ -39,6 +41,7 @@ async def main():
   handlers = [
     HelpHandler(priority=10),  # 帮助命令，优先级最高
     EchoHandler(priority=50),  # 回声处理器
+    AgentHandler(priority=100),  # ai agent处理器
   ]
 
   # 创建消息分派器
@@ -60,7 +63,7 @@ async def main():
 
     # 分派消息到处理器
     response = await dispatcher.dispatch(context)
-    logger.info(f"处理结果: {response.result.value} - {response.message}")
+    logger.debug(f"处理结果: {response.result.value} - {response.message}")
 
   async def on_connect():
     logger.success("[回调] 客户端已连接")

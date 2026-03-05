@@ -47,10 +47,10 @@ class LLMChatResponse(BaseModel):
 
 
 class MessageRole(str, Enum):
-  system = "system"
-  user = "user"
-  assistant = "assistant"
-  tool = "tool"
+  SYSTEM = "system"
+  USER = "user"
+  ASSISTANT = "assistant"
+  TOOL = "tool"
 
 
 class LLMMessage(BaseModel):
