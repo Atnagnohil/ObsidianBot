@@ -69,12 +69,12 @@ class MessageDispatcher:
       try:
         # 检查是否可以处理
         if await handler.can_handle(context):
-          logger.info(f"使用处理器: {handler.name}")
+          logger.debug(f"使用处理器: {handler.name}")
 
           # 执行处理
           response = await handler.handle(context)
 
-          logger.info(
+          logger.debug(
             f"处理器 {handler.name} 执行完成: {response.result.value}"
           )
           return response

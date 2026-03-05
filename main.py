@@ -2,6 +2,7 @@
 import asyncio
 
 from src.gateway.core.connection.websocket import ReverseWebSocketServer
+from src.gateway.core.protocol.onebot import bot_adapter
 from src.gateway.dispatcher import MessageDispatcher
 from src.gateway.filters.base import BotContext
 from src.gateway.filters.content import ContentFilter
@@ -14,8 +15,13 @@ from src.utils.logger import logger
 async def main():
   """主函数，启动 WebSocket 服务端。"""
   # 加载配置
-  config.load("config.yaml")
-  logger.info("配置加载完成")
+  # 检查 OneBot 服务连接
+  logger.info("正在检查 OneBot 服务连接...")
+  if await bot_adapter.check_health():
+    logger.success("OneBot 服务连接正常")
+  else:
+    logger.error("OneBot 服务连接失败，消息发送功能可能无法使用")
+    logger.warning("程序将继续运行，但建议检查 OneBot 配置")
 
   # 从配置文件读取 WebSocket 配置
   ws_config = config.get("ws", {})
@@ -50,7 +56,7 @@ async def main():
 
   # 设置回调
   async def on_message(context: BotContext):
-    logger.info(f"[回调] 处理消息: {context.event.post_type}")
+    logger.debug(f"[回调] 处理消息: {context.event.post_type}")
 
     # 分派消息到处理器
     response = await dispatcher.dispatch(context)
@@ -72,6 +78,11 @@ async def main():
   except KeyboardInterrupt:
     logger.info("收到中断信号，正在关闭...")
     await server.stop()
+  finally:
+    # 清理 HTTP 客户端
+    from src.utils.http_client import http
+    await http.async_close()
+    logger.info("资源清理完成")
 
 
 if __name__ == "__main__":

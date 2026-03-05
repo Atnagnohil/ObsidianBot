@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, Any, List, Optional
@@ -272,3 +273,24 @@ class FlashFileEvent(BaseEvent):
   user_id: int
   file: Dict[str, Any]
   group_id: Optional[int] = None
+
+
+class BaseBotAdapter(ABC):
+  """
+  机器人适配器抽象基类
+  提供API能力
+  """
+
+  @abstractmethod
+  async def send_group_msg(self, group_id: int, message: List[MessageSegment]):
+    """
+    发送群消息
+    """
+    pass
+
+  @abstractmethod
+  async def send_private_msg(self, user_id: int, message: List[MessageSegment]):
+    """
+    发送私聊消息
+    """
+    pass

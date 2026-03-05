@@ -20,10 +20,11 @@ class HttpClient:
     def __init__(self):
         # 默认配置
         self.config = {
-            "timeout": 30.0,
+            "timeout": httpx.Timeout(10.0, connect=5.0),  # 总超时 10s，连接超时 5s
             "follow_redirects": True,
             "verify": True,
-            "headers": {}
+            "headers": {"Connection": "keep-alive"},
+            "limits": httpx.Limits(max_keepalive_connections=5, max_connections=10),
         }
 
     def setup(self, config: Optional[Dict[str, Any]] = None) -> None:
@@ -39,7 +40,8 @@ class HttpClient:
             timeout=self.config["timeout"],
             follow_redirects=self.config["follow_redirects"],
             verify=self.config["verify"],
-            headers=self.config["headers"]
+            headers=self.config["headers"],
+            limits=self.config["limits"],
         )
 
         # 初始化异步客户端
@@ -47,10 +49,11 @@ class HttpClient:
             timeout=self.config["timeout"],
             follow_redirects=self.config["follow_redirects"],
             verify=self.config["verify"],
-            headers=self.config["headers"]
+            headers=self.config["headers"],
+            limits=self.config["limits"],
         )
 
-        logger.info(f"HTTP 客户端已初始化。超时时间：{self.config['timeout']}s")
+        logger.info(f"HTTP 客户端已初始化。超时配置：{self.config['timeout']}")
 
     def _ensure_client(self) -> httpx.Client:
         """确保同步客户端已初始化"""

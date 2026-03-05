@@ -1,9 +1,10 @@
 """帮助命令处理器。"""
 
+from src.gateway.core.protocol import MessageEvent, EventType
+from src.gateway.core.protocol.onebot import bot_adapter
+from src.gateway.core.protocol.schemas import MessageType, MessageSegment
 from src.gateway.filters.base import BotContext
 from src.gateway.handlers.base import BaseHandler, HandlerResponse, HandlerResult
-from src.gateway.core.protocol import MessageEvent, EventType
-from src.gateway.core.protocol.schemas import MessageType
 from src.utils.logger import logger
 
 
@@ -52,25 +53,46 @@ class HelpHandler(BaseHandler):
         result=HandlerResult.FAILED, message="事件类型不匹配"
       )
 
-    help_text = """
-🤖 可用命令：
+    help_text = """🤖 可用命令：
 
 1. help / 帮助 - 显示此帮助信息
 2. echo <内容> - 回声消息
 3. 回声 <内容> - 回声消息
 
-更多功能开发中...
-    """.strip()
+更多功能开发中..."""
 
-    logger.info(f"用户 {event.user_id} 请求帮助")
+    logger.debug(f"用户 {event.user_id} 请求帮助")
 
-    # TODO: 实现消息发送功能
+    # 构建回复消息
+    reply_message = [MessageSegment(type=MessageType.TEXT, data={"text": help_text})]
 
-    return HandlerResponse(
-      result=HandlerResult.SUCCESS,
-      message=help_text,
-      data={"user_id": event.user_id},
-    )
+    # 发送消息
+    try:
+      if event.message_type == "group":
+        result = await bot_adapter.send_group_msg(event.group_id, reply_message)
+      else:
+        result = await bot_adapter.send_private_msg(event.user_id, reply_message)
+
+      if result.get("status") == "ok":
+        return HandlerResponse(
+          result=HandlerResult.SUCCESS,
+          message=help_text,
+          data={"user_id": event.user_id},
+        )
+      else:
+        error_msg = result.get("message", "未知错误")
+        logger.warning(f"发送帮助消息失败: {error_msg}")
+        return HandlerResponse(
+          result=HandlerResult.FAILED,
+          message=f"发送失败: {error_msg}",
+          data={"error": result},
+        )
+
+    except Exception as e:
+      logger.error(f"发送帮助消息异常: {e}", exc_info=True)
+      return HandlerResponse(
+        result=HandlerResult.FAILED, message=f"发送异常: {e}"
+      )
 
   def _extract_text(self, event: MessageEvent) -> str:
     """

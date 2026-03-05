@@ -1,9 +1,10 @@
 """回声处理器示例。"""
 
+from src.gateway.core.protocol import MessageEvent, EventType
+from src.gateway.core.protocol.onebot import bot_adapter
+from src.gateway.core.protocol.schemas import MessageType, MessageSegment
 from src.gateway.filters.base import BotContext
 from src.gateway.handlers.base import BaseHandler, HandlerResponse, HandlerResult
-from src.gateway.core.protocol import MessageEvent, EventType
-from src.gateway.core.protocol.schemas import MessageType
 from src.utils.logger import logger
 
 
@@ -62,16 +63,38 @@ class EchoHandler(BaseHandler):
     else:
       echo_text = text_content
 
-    logger.info(f"回声消息: {echo_text}")
+    logger.debug(f"回声消息: {echo_text}")
 
-    # 这里应该调用 API 发送消息，暂时只记录日志
-    # TODO: 实现消息发送功能
+    # 构建回复消息
+    reply_message = [MessageSegment(type=MessageType.TEXT, data={"text": echo_text})]
 
-    return HandlerResponse(
-      result=HandlerResult.SUCCESS,
-      message=f"回声: {echo_text}",
-      data={"echo_text": echo_text, "user_id": event.user_id},
-    )
+    # 发送消息
+    try:
+      if event.message_type == "group":
+        result = await bot_adapter.send_group_msg(event.group_id, reply_message)
+      else:
+        result = await bot_adapter.send_private_msg(event.user_id, reply_message)
+
+      if result.get("status") == "ok":
+        return HandlerResponse(
+          result=HandlerResult.SUCCESS,
+          message=f"回声: {echo_text}",
+          data={"echo_text": echo_text, "user_id": event.user_id},
+        )
+      else:
+        error_msg = result.get("message", "未知错误")
+        logger.warning(f"发送回声消息失败: {error_msg}")
+        return HandlerResponse(
+          result=HandlerResult.FAILED,
+          message=f"发送失败: {error_msg}",
+          data={"error": result},
+        )
+
+    except Exception as e:
+      logger.error(f"发送回声消息异常: {e}", exc_info=True)
+      return HandlerResponse(
+        result=HandlerResult.FAILED, message=f"发送异常: {e}"
+      )
 
   def _extract_text(self, event: MessageEvent) -> str:
     """

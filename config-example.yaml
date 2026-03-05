@@ -19,3 +19,7 @@ ws:
   port: 8081
   heartbeat_interval: 30
   heartbeat_timeout: 10
+
+onebot:
+  base_url: http://localhost:3000
+  access_token: "" # 如果需要鉴权，填写访问令牌
