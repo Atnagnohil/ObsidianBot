@@ -1,0 +1,51 @@
+# ============================================
+# 极致优化版本 - 使用 Distroless（最小镜像）
+# ============================================
+
+# 阶段 1: 构建阶段
+FROM python:3.14-slim AS builder
+
+WORKDIR /build
+
+# 安装 uv
+RUN pip install --no-cache-dir uv
+
+# 复制依赖文件
+COPY pyproject.toml uv.lock ./
+
+# 创建虚拟环境并安装依赖
+RUN python -m venv /opt/venv && \
+    . /opt/venv/bin/activate && \
+    uv pip install --no-cache -r pyproject.toml
+
+# 清理不必要的文件
+RUN find /opt/venv -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true && \
+    find /opt/venv -type f -name "*.pyc" -delete && \
+    find /opt/venv -type f -name "*.pyo" -delete && \
+    find /opt/venv -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true && \
+    find /opt/venv -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
+
+# 阶段 2: 运行阶段 - Distroless
+FROM gcr.io/distroless/python3-debian12:nonroot
+
+# 从构建阶段复制虚拟环境
+COPY --from=builder /opt/venv /opt/venv
+
+# 复制应用代码
+COPY --chown=nonroot:nonroot main.py /app/
+COPY --chown=nonroot:nonroot src /app/src
+
+WORKDIR /app
+
+# 设置环境变量
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONOPTIMIZE=2
+
+# 暴露端口
+EXPOSE 8081
+
+# Distroless 不支持 shell，直接运行 Python
+ENTRYPOINT ["/opt/venv/bin/python", "-O"]
+CMD ["main.py"]

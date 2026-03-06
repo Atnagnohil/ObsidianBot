@@ -1,0 +1,52 @@
+services:
+  obsidianbot:
+    build:
+      context: .
+      dockerfile: Dockerfile # 可选: Dockerfile.distroless (更小但无 shell)
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: obsidianbot:latest
+    container_name: obsidianbot
+    restart: unless-stopped
+
+    # 端口映射
+    ports:
+      - "8081:8081"
+
+    # 挂载配置文件和日志目录
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro # 只读挂载配置
+      - ./logs:/app/logs:rw # 日志目录（读写权限）
+
+    # 环境变量
+    environment:
+      - TZ=Asia/Shanghai
+      - PYTHONUNBUFFERED=1
+
+    # 资源限制（优化后可以更低）
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+
+    # 安全选项
+    security_opt:
+      - no-new-privileges:true
+    # read_only: true # 只读文件系统（暂时禁用，因为需要写日志）
+    tmpfs:
+      - /tmp:size=10M,mode=1777
+
+    # 网络模式
+    network_mode: bridge
+
+    # 日志配置（压缩优化）
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+        compress: "true"
