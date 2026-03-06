@@ -10,6 +10,7 @@ from src.gateway.filters.content import ContentFilter
 from src.gateway.handlers.agent_handler import AgentHandler
 from src.gateway.handlers.echo_handler import EchoHandler
 from src.gateway.handlers.help_handler import HelpHandler
+from src.gateway.handlers.summary_handler import SummaryHandler
 from src.utils.config import config
 from src.utils.logger import logger
 
@@ -40,6 +41,7 @@ async def main():
   # 创建处理器列表
   handlers = [
     HelpHandler(priority=10),  # 帮助命令，优先级最高
+    SummaryHandler(priority=20),  # 总结查询处理器
     EchoHandler(priority=50),  # 回声处理器
     AgentHandler(priority=100),  # ai agent处理器
   ]

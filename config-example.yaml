@@ -23,3 +23,8 @@ ws:
 onebot:
   base_url: http://localhost:3000
   access_token: "" # 如果需要鉴权，填写访问令牌
+
+content:
+  max_content_num: 100 # 最大内容数量
+  extract_threshold: 20 # 触发总结的阈值（内容数量）
+  extract_batch_size: 20 # 每次总结的批次大小
