@@ -28,7 +28,7 @@ class ReverseWebSocketServer:
     host: str = "0.0.0.0",
     port: int = 8080,
     heartbeat_interval: int = 30,
-    heartbeat_timeout: int = 10,
+    heartbeat_timeout: int = 60,
     filters: Optional[List[Filter]] = None,
   ):
     """初始化反向 WebSocket 服务端。
@@ -36,8 +36,8 @@ class ReverseWebSocketServer:
     Args:
         host: 监听地址
         port: 监听端口
-        heartbeat_interval: 心跳间隔（秒）
-        heartbeat_timeout: 心跳超时时间（秒）
+        heartbeat_interval: 心跳检查间隔（秒）
+        heartbeat_timeout: 心跳超时时间（秒），应该大于客户端的心跳发送间隔
         filters: 过滤器列表
     """
     self.host = host
@@ -51,6 +51,7 @@ class ReverseWebSocketServer:
 
     # 心跳相关
     self._last_heartbeat: Optional[datetime] = None
+    self._last_message: Optional[datetime] = None
     self._heartbeat_task: Optional[asyncio.Task] = None
 
     # 过滤器链
@@ -108,6 +109,7 @@ class ReverseWebSocketServer:
 
     self.client = websocket
     self._last_heartbeat = datetime.now()
+    self._last_message = datetime.now()
 
     logger.success(f"客户端已连接: {client_info}")
 
@@ -138,8 +140,8 @@ class ReverseWebSocketServer:
         message: 接收到的消息内容
     """
     try:
-      # 更新心跳时间
-      self._last_heartbeat = datetime.now()
+      # 更新最后消息时间
+      self._last_message = datetime.now()
 
       # 解析 JSON 消息
       data = json.loads(message)
@@ -151,6 +153,13 @@ class ReverseWebSocketServer:
       event = self._parse_event(data)
       if not event:
         logger.warning("无法解析事件，跳过处理")
+        return
+
+      # 如果是心跳事件，更新心跳时间
+      from src.gateway.core.protocol import HeartbeatEvent
+      if isinstance(event, HeartbeatEvent):
+        self._last_heartbeat = datetime.now()
+        logger.debug(f"收到心跳事件，间隔: {event.interval}ms")
         return
 
       # 创建上下文对象
@@ -284,23 +293,30 @@ class ReverseWebSocketServer:
 
   async def _heartbeat_monitor(self) -> None:
     """心跳监控任务。"""
-    logger.debug("心跳监控已启动")
+    logger.debug(f"心跳监控已启动 (检查间隔: {self.heartbeat_interval}s, 超时阈值: {self.heartbeat_timeout}s)")
 
     try:
       while self.is_running and self.client:
         await asyncio.sleep(self.heartbeat_interval)
 
         if not self._last_heartbeat:
+          logger.debug("尚未收到心跳消息")
           continue
 
         # 检查心跳超时
         elapsed = (datetime.now() - self._last_heartbeat).total_seconds()
-        if elapsed > self.heartbeat_timeout + self.heartbeat_interval:
-          logger.warning(f"心跳超时 ({elapsed:.1f}s)，关闭连接")
+        
+        if elapsed > self.heartbeat_timeout:
+          logger.warning(f"心跳超时 (距上次心跳: {elapsed:.1f}s, 阈值: {self.heartbeat_timeout}s)，关闭连接")
           await self.client.close(1001, "心跳超时")
           break
 
-        logger.debug(f"心跳正常 (距上次: {elapsed:.1f}s)")
+        # 检查是否有任何消息活动
+        if self._last_message:
+          message_elapsed = (datetime.now() - self._last_message).total_seconds()
+          logger.debug(f"心跳检查 - 距上次心跳: {elapsed:.1f}s, 距上次消息: {message_elapsed:.1f}s")
+        else:
+          logger.debug(f"心跳检查 - 距上次心跳: {elapsed:.1f}s")
 
     except asyncio.CancelledError:
       logger.debug("心跳监控已取消")
@@ -311,10 +327,21 @@ class ReverseWebSocketServer:
     """清理客户端连接。"""
     if self._heartbeat_task:
       self._heartbeat_task.cancel()
+      try:
+        await self._heartbeat_task
+      except asyncio.CancelledError:
+        pass
       self._heartbeat_task = None
+
+    if self.client:
+      try:
+        await self.client.close()
+      except Exception as e:
+        logger.debug(f"关闭客户端连接时出错: {e}")
 
     self.client = None
     self._last_heartbeat = None
+    self._last_message = None
 
     logger.info("客户端连接已清理")
 
